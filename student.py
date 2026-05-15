@@ -48,14 +48,14 @@ class Student:
         
         self.course.set("Select Course")
         # Updated Courses
-        OptionMenu(course, self.course, *["DSA", "OOPS", "AI", "OS", "DBMS", "CN", "COA", "Python","Web Developer"]).place(x=508, y=50, height=39, width=190)
+        OptionMenu(course, self.course, *["DSA", "OOPS", "AI","Machine Learning", "OS", "DBMS", "CN", "COA", "Python","Web Developer"]).place(x=508, y=50, height=39, width=190)
         
         self.semester.set("Select Semester")
         OptionMenu(course, self.semester, *['1st', '2nd', '3rd', '4th', '5th', "6th", "7th", "8th"]).place(x=185, y=110, height=39, width=190)
         
         self.year.set("Select Year")
         # Updated Years
-        OptionMenu(course, self.year, *["2022", "2023", "2024", "2025", "2026", "2027", "2028"]).place(x=508, y=110, height=39, width=190)
+        OptionMenu(course, self.year, *["2022", "2023", "2024", "2025", "2026", "2027", "2028","2029","2030"]).place(x=508, y=110, height=39, width=190)
 
         # self.dep.set("Select Department")
         # OptionMenu(course, self.dep, *["IT","Civil","CS","Electrical"]).place(x=185, y=50, height=39, width=190)
