@@ -1,0 +1,14 @@
+# 1. Ignore Python Cache
+__pycache__/
+*.pyc
+
+# 2. Ignore Face Data and UI Images
+Faces/
+Images/
+
+# 3. Ignore AI Models and Weights
+models/
+*.pkl
+
+# 4. Ignore Generated Attendance Records (Protects student privacy!)
+Attendance/
