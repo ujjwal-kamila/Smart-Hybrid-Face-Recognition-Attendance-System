@@ -14,7 +14,6 @@ from datetime import datetime
 from tkinter import messagebox
 from database import get_frs_db
 
-# --- NEW EMAIL FUNCTION ---
 def send_email_alert(student_email, student_name, time_marked):
     # CHANGE THESE TWO LINES TO YOUR GMAIL DETAILS
     sender_email = "ujjwalkamila86@gmail.com" 
@@ -99,8 +98,11 @@ def start_recognition():
 
     embedder = FaceNet()
     face_cascade = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
+    
+    # Built-in OpenCV Eye Tracking for Liveness Detection
+    eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_eye.xml')
 
-    # --- FIX: CACHE ALL STUDENT DETAILS LOCALLY ---
+    # Cache student details locally
     student_cache = {}
     conn = get_frs_db()
     if conn:
@@ -118,17 +120,21 @@ def start_recognition():
     frame_count = 0
     last_faces = []
     last_identities = []
-    verification_counts = {}
+    
+    # Tracking dictionary to include strict Timeout for Liveness
+    student_states = {} 
     MAX_DETECTIONS = 12 
+    MAX_TIMEOUT = 50 # How long they have to blink before being declined (approx 3-4 seconds)
 
     while True:
         ret, frame = cap.read()
         if not ret: break
 
         frame_count += 1
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
+        # --- RECOGNITION (Runs every 3 frames to save CPU) ---
         if frame_count % 3 == 0:
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             faces = face_cascade.detectMultiScale(gray, scaleFactor=1.2, minNeighbors=5)
 
             last_faces = faces
@@ -136,11 +142,11 @@ def start_recognition():
 
             for (x, y, w, h) in faces:
                 face_crop = frame[y:y+h, x:x+w]
-                face_crop = cv2.cvtColor(face_crop, cv2.COLOR_BGR2RGB)
-                face_crop = cv2.resize(face_crop, (160, 160))
-                face_crop = np.expand_dims(face_crop, axis=0)
+                face_crop_rgb = cv2.cvtColor(face_crop, cv2.COLOR_BGR2RGB)
+                face_crop_resized = cv2.resize(face_crop_rgb, (160, 160))
+                face_crop_expanded = np.expand_dims(face_crop_resized, axis=0)
 
-                emb = embedder.embeddings(face_crop)[0]
+                emb = embedder.embeddings(face_crop_expanded)[0]
                 emb = np.expand_dims(emb, axis=0)
                 
                 preds = clf.predict_proba(emb)[0]
@@ -150,36 +156,78 @@ def start_recognition():
                 if prob > 0.65: 
                     student_id = str(le.inverse_transform([max_idx])[0])
                     
-                    # Read directly from cache dictionary memory space instead of MySQL inside loop
                     student_info = student_cache.get(student_id, {"name": "Unknown", "email": None})
                     name = student_info["name"]
                     student_email = student_info["email"]
 
-                    if verification_counts.get(student_id) == "MARKED":
+                    # Initialize state for new faces
+                    if student_id not in student_states:
+                        student_states[student_id] = {
+                            "count": 0, 
+                            "eyes_closed_frames": 0, 
+                            "has_blinked": False, 
+                            "marked": False,
+                            "timeout": 0 # NEW: Tracks how long they've been asked to blink
+                        }
+                    
+                    if student_states[student_id]["marked"]:
                         progress_text = "Attendance: Saved"
-                        color = (255, 255, 0)
+                        color = (255, 255, 0) # Cyan/Yellow
                     else:
-                        current_count = verification_counts.get(student_id, 0) + 1
-                        verification_counts[student_id] = current_count
-                        
+                        # Stop counting once we reach the max
+                        if student_states[student_id]["count"] < MAX_DETECTIONS:
+                            student_states[student_id]["count"] += 1
+                            
+                        current_count = student_states[student_id]["count"]
                         progress_pct = int((current_count / MAX_DETECTIONS) * 100)
                         
                         if progress_pct >= 100:
-                            progress_text = "Saving..."
-                            color = (0, 255, 0)
-                            
-                            is_newly_marked = mark_attendance(student_id, name)
-                            verification_counts[student_id] = "MARKED"
-                            
-                            if is_newly_marked:
-                                # Send email using the cached email address immediately
-                                if student_email:
-                                    current_time = datetime.now().strftime("%H:%M:%S")
-                                    send_email_alert(student_email, name, current_time)
-
-                                messagebox.showinfo("Success", f"Attendance Saved for {name}\n(ID: {student_id})")
+                            # --- STRICT LIVENESS GATE ---
+                            if not student_states[student_id]["has_blinked"]:
+                                student_states[student_id]["timeout"] += 1
+                                time_left = MAX_TIMEOUT - student_states[student_id]["timeout"]
+                                
+                                progress_text = f"Please Blink! ({time_left})"
+                                color = (0, 165, 255) # Orange (Warning)
+                                
+                                # Analyze only the top half of the face for eyes
+                                roi_gray = gray[y:y+int(h/2), x:x+w]
+                                eyes = eye_cascade.detectMultiScale(roi_gray, scaleFactor=1.1, minNeighbors=6, minSize=(15, 15))
+                                
+                                if len(eyes) == 0:
+                                    student_states[student_id]["eyes_closed_frames"] += 1
+                                else:
+                                    # If eyes were closed previously, it's a blink!
+                                    if student_states[student_id]["eyes_closed_frames"] >= 1:
+                                        student_states[student_id]["has_blinked"] = True
+                                    
+                                    # Reset the closed frame counter
+                                    student_states[student_id]["eyes_closed_frames"] = 0
+                                
+                                # --- DECLINE CONDITION ---
+                                # If the timeout reaches 0 and they still haven't blinked (e.g. holding a photo)
+                                if student_states[student_id]["timeout"] > MAX_TIMEOUT:
+                                    messagebox.showerror("Liveness Failed", f"Spoofing Detected!\nNo blink registered for {name}.\nAttendance Declined.")
+                                    
+                                    # Completely reset their progress so they have to start over
+                                    student_states[student_id]["count"] = 0
+                                    student_states[student_id]["timeout"] = 0
+                                    student_states[student_id]["eyes_closed_frames"] = 0
                             else:
-                                messagebox.showinfo("Info", f"Attendance was already marked for {name} today!")
+                                progress_text = "Saving..."
+                                color = (0, 255, 0)
+                                
+                                is_newly_marked = mark_attendance(student_id, name)
+                                student_states[student_id]["marked"] = True
+                                
+                                if is_newly_marked:
+                                    if student_email:
+                                        current_time = datetime.now().strftime("%H:%M:%S")
+                                        send_email_alert(student_email, name, current_time)
+
+                                    messagebox.showinfo("Success", f"Attendance Saved for {name}\n(ID: {student_id})")
+                                else:
+                                    messagebox.showinfo("Info", f"Attendance was already marked for {name} today!")
                         else:
                             progress_text = f"Scanning: {progress_pct}%"
                             color = (0, 255, 0)
@@ -188,6 +236,7 @@ def start_recognition():
                 else:
                     last_identities.append(("Unknown", "Unknown", "Scanning: 0%", (0, 0, 255))) 
 
+        # --- DRAW BOUNDING BOXES ---
         for i, (x, y, w, h) in enumerate(last_faces):
             if i < len(last_identities):
                 student_id, name, progress_text, color = last_identities[i]
