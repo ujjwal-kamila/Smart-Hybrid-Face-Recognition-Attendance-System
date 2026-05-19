@@ -70,6 +70,10 @@ class Login:
                     self.new_window = Toplevel(self.window)
                     from dashboard import Dashboard  # Lazy import for fast UI
                     self.new = Dashboard(self.new_window)
+                    
+                    # FIX: When dashboard is closed via standard window close button (X), kill the hidden login window completely
+                    self.new_window.protocol("WM_DELETE_WINDOW", self.window.destroy)
+                    
                     self.window.withdraw()
                 else:
                     messagebox.showerror("Error", "Invalid Username and Password.")
