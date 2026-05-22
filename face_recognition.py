@@ -13,6 +13,7 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 from tkinter import messagebox
 from database import get_frs_db
+import time
 
 def send_email_alert(student_email, student_name, time_marked):
     # CHANGE THESE TWO LINES TO YOUR GMAIL DETAILS
@@ -126,6 +127,9 @@ def start_recognition():
     MAX_DETECTIONS = 12 
     MAX_TIMEOUT = 50 # How long they have to blink before being declined (approx 3-4 seconds)
 
+    # --- NEW: Initialize the Idle Timer ---
+    last_face_seen_time = time.time()
+
     while True:
         ret, frame = cap.read()
         if not ret: break
@@ -133,9 +137,18 @@ def start_recognition():
         frame_count += 1
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
+        # 60-Second Silent Timeout Check ---
+        # If no face is detected for 30 seconds, close the camera quietly
+        if time.time() - last_face_seen_time > 60:
+            break
+
         # --- RECOGNITION (Runs every 3 frames to save CPU) ---
         if frame_count % 3 == 0:
             faces = face_cascade.detectMultiScale(gray, scaleFactor=1.2, minNeighbors=5)
+
+            # --- NEW: Reset the timer if any face is detected ---
+            if len(faces) > 0:
+                last_face_seen_time = time.time()
 
             last_faces = faces
             last_identities = []
@@ -207,8 +220,6 @@ def start_recognition():
                                 # --- DECLINE CONDITION ---
                                 # If the timeout reaches 0 and they still haven't blinked (e.g. holding a photo)
                                 if student_states[student_id]["timeout"] > MAX_TIMEOUT:
-                                    messagebox.showerror("Liveness Failed", f"Spoofing Detected!\nNo blink registered for {name}.\nAttendance Declined.")
-                                    
                                     # Completely reset their progress so they have to start over
                                     student_states[student_id]["count"] = 0
                                     student_states[student_id]["timeout"] = 0
@@ -225,9 +236,6 @@ def start_recognition():
                                         current_time = datetime.now().strftime("%H:%M:%S")
                                         send_email_alert(student_email, name, current_time)
 
-                                    messagebox.showinfo("Success", f"Attendance Saved for {name}\n(ID: {student_id})")
-                                else:
-                                    messagebox.showinfo("Info", f"Attendance was already marked for {name} today!")
                         else:
                             progress_text = f"Scanning: {progress_pct}%"
                             color = (0, 255, 0)

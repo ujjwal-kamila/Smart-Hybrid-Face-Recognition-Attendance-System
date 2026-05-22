@@ -4,6 +4,7 @@ from tkinter import ttk, messagebox, filedialog
 import os
 import csv
 from database import get_frs_db
+from database import get_credentials_db
 
 my_data = []
 
@@ -132,4 +133,115 @@ class Attendance:
         self.attendance.set("Present")
 
     def update(self):
-        messagebox.showerror("Error", "You can't alter the attendance via UI.")
+        if self.student_id.get() == "":
+            messagebox.showerror("Error", "Please select an entry")
+            return
+            
+        # UI Styling to match your request
+        self.auth_win = Toplevel(self.window)
+        self.auth_win.title("Admin Panel")
+        self.auth_win.geometry("500x400")
+        self.auth_win.config(bg="#ffdab9")
+        
+        Label(self.auth_win, text="ADMIN PANEL", font=("Times New Roman", 25, "bold"), bg="#ffdab9", fg="red").pack(pady=20)
+        
+        Label(self.auth_win, text="Admin Email:", font=("Times New Roman", 15, "bold"), bg="#ffdab9").pack(anchor=W, padx=50)
+        self.admin_user = Entry(self.auth_win, font=("Times New Roman", 15), bg="#008080", fg="white")
+        self.admin_user.pack(fill=X, padx=50, ipady=5)
+        
+        Label(self.auth_win, text="Admin Password:", font=("Times New Roman", 15, "bold"), bg="#ffdab9").pack(anchor=W, padx=50, pady=(10,0))
+        self.admin_pass = Entry(self.auth_win, font=("Times New Roman", 15), bg="#008080", fg="white", show="*")
+        self.admin_pass.pack(fill=X, padx=50, ipady=5)
+        
+        # Forgot Password link within the popup
+        Button(self.auth_win, text="Forgot Password?", font=("Times New Roman", 12, "bold", "underline"), 
+               command=self.open_forgot_password, bg="#ffdab9", borderwidth=0, fg="blue").pack(pady=10)
+        
+        # Styled Verify Button
+        Button(self.auth_win, text="Verify & Update", font=("Times New Roman", 15, "bold"), 
+               command=self.verify_admin, bg="#008080", fg="white", bd=3, relief=RAISED).pack(pady=20)
+
+    def verify_admin(self):
+        conn = get_credentials_db()
+        if not conn: return
+        try:
+            cursor = conn.cursor()
+            # Verify Email, Password, AND Role
+            cursor.execute("SELECT Role FROM details WHERE Email=%s AND Password=%s AND Role='Admin'", 
+                           (self.admin_user.get(), self.admin_pass.get()))
+            
+            if cursor.fetchone():
+                self.execute_update() 
+                self.auth_win.destroy()
+            else:
+                messagebox.showerror("Error", "Access Denied: Admin privileges required!")
+        finally:
+            conn.close()
+
+    def execute_update(self):
+        # This performs the actual database update
+        conn = get_frs_db()
+        try:
+            cursor = conn.cursor()
+            sql = "UPDATE attendance SET Status=%s WHERE StudentID=%s AND Date=%s"
+            val = (self.attendance.get(), self.student_id.get(), self.date.get())
+            cursor.execute(sql, val)
+            conn.commit()
+            self.load_from_db() # Refresh table
+            messagebox.showinfo("Success", "Attendance updated successfully")
+        except Exception as e:
+            messagebox.showerror("Error", f"Update failed: {str(e)}")
+        finally:
+            conn.close()
+            
+    def open_forgot_password(self):
+        # Create the recovery window directly here
+        self.win_fp = Toplevel(self.window)
+        self.win_fp.title("Recover Password")
+        self.win_fp.geometry("500x300")
+        self.win_fp.config(bg="#ffdab9")
+        
+        Label(self.win_fp, text="Enter your registered Email:", font=("Times New Roman", 16, "bold"), bg="#ffdab9").pack(pady=30)
+        
+        self.email_entry = Entry(self.win_fp, width=30, font=("Times New Roman", 16))
+        self.email_entry.pack(pady=10, ipady=5)
+        
+        # Use your existing send_reset_email method
+        Button(self.win_fp, text="Send Password", command=self.send_reset_email, 
+               bg="#008080", fg="white", font=("Times New Roman", 14, "bold"), width=15, height=2).pack(pady=30)
+
+    # Make sure you also have send_reset_email inside attendance.py or import it
+    def send_reset_email(self):
+        email = self.email_entry.get()
+        if not email:
+            messagebox.showerror("Error", "Please enter an email address!")
+            return
+
+        conn = get_credentials_db()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT Password FROM details WHERE Email=%s", (email,))
+                row = cursor.fetchone()
+                if row:
+                    password = row[0]
+                    # Same logic used in your login.py
+                    import smtplib
+                    from email.mime.text import MIMEText
+                    sender_email = "ujjwalkamila86@gmail.com"
+                    sender_password = "bdrj vxxz jlha bwyj"
+                    msg = MIMEText(f"Hello,\n\nYour registered password is: {password}")
+                    msg['Subject'] = "Password Recovery"
+                    msg['From'] = sender_email
+                    msg['To'] = email
+                    server = smtplib.SMTP('smtp.gmail.com', 587)
+                    server.starttls()
+                    server.login(sender_email, sender_password)
+                    server.send_message(msg)
+                    server.quit()
+                    messagebox.showinfo("Success", "Password successfully sent!")
+                    self.win_fp.destroy()
+                else:
+                    messagebox.showerror("Error", "Email not found!")
+            finally:
+                conn.close()
