@@ -88,40 +88,70 @@ class Dashboard:
         btn_exit.grid(row=1, column=2, padx=40, pady=30)
 
         # =========================================================================
-        # --- SINGLE LINE FOOTER ---
+        # --- ADJUSTED FOOTER ---
         # =========================================================================
         footer_bg = "#e7e1db" 
-        footer_font = ("Times New Roman", 15, "bold")
         
-        footer_frame = Frame(self.window, bg=footer_bg)
+        # Increase height by adding a fixed height or more vertical padding
+        footer_frame = Frame(self.window, bg=footer_bg, height=80) 
         footer_frame.pack(side=BOTTOM, fill=X)
+        footer_frame.pack_propagate(False) # Prevents the frame from shrinking to fit content
 
-        # Center container for the single line
+        # Create a container inside the footer to center the items
         center_footer = Frame(footer_frame, bg=footer_bg)
-        center_footer.pack(pady=15) # Creates perfect vertical spacing
+        center_footer.place(relx=0.5, rely=0.5, anchor=CENTER)
 
-        # 1. GitHub (Changed fg to black)
-        gh_lbl = Label(center_footer, text="github GitHub", font=footer_font, bg=footer_bg, fg="black", cursor="hand2")
-        gh_lbl.pack(side=LEFT, padx=5)
-        gh_lbl.bind("<Enter>", lambda e: gh_lbl.config(fg="#00ced1")) 
-        gh_lbl.bind("<Leave>", lambda e: gh_lbl.config(fg="black")) # Changed leave color back to black
-        gh_lbl.bind("<Button-1>", lambda e: webbrowser.open_new("https://github.com/ujjwal-kamila"))
+        def add_icon(filename, url, label_text=None):
+            img_path = os.path.join("Images", "logos", filename)
+            try:
+                img = Image.open(img_path).resize((25, 25), Image.Resampling.LANCZOS)
+                photo = ImageTk.PhotoImage(img)
+                
+                # Check if URL exists; if not, just use a Label or a non-command Button
+                if url:
+                    btn = Button(center_footer, image=photo, bg=footer_bg, bd=0, 
+                                 activebackground=footer_bg, cursor="hand2",
+                                 command=lambda: webbrowser.open_new(url))
+                else:
+                    btn = Label(center_footer, image=photo, bg=footer_bg)
+                
+                btn.image = photo
+                btn.pack(side=LEFT, padx=(10, 2))
+                
+                if label_text:
+                    Label(center_footer, text=label_text, font=("Times New Roman", 15, "bold"), 
+                          bg=footer_bg).pack(side=LEFT, padx=(0, 10))
+            except Exception as e:
+                print(f"Error loading {filename}: {e}")
 
-        # Separator (Changed fg to black)
-        Label(center_footer, text=" | ", font=footer_font, bg=footer_bg, fg="black").pack(side=LEFT)
-
-        # 2. Made with Love (Changed fg to black)
-        Label(center_footer, text="Made with ❤️ by ", font=footer_font, bg=footer_bg, fg="black").pack(side=LEFT)
+        # Adding elements
+        add_icon("github.png", "https://github.com/ujjwal-kamila/Smart-Hybrid-Face-Recognition-Attendance-System", "GitHub |")
+        # add_icon("linkedin.png", "https://www.linkedin.com/in/ujjwal-kamila/", "LinkedIn |")
+        # # Replace the text label with this logic:
+        # --- MADE WITH SECTION ---
+        Label(center_footer, text="Made with", font=("Times New Roman", 15, "bold"), 
+              bg=footer_bg).pack(side=LEFT, padx=(10, 5))
         
-        # Clickable Name (Changed fg to black)
-        name_lbl = Label(center_footer, text="Ujjwal Kamila", font=footer_font, bg=footer_bg, fg="black", cursor="hand2")
-        name_lbl.pack(side=LEFT)
-        name_lbl.bind("<Enter>", lambda e: name_lbl.config(fg="#00ced1")) # Added teal hover effect here too
-        name_lbl.bind("<Leave>", lambda e: name_lbl.config(fg="black")) # Changed leave color back to black
-        name_lbl.bind("<Button-1>", lambda e: webbrowser.open_new("https://ujjwal-kamila.vercel.app/"))
+        # Add the heart icon (ensure heart.png is in your Images/logos folder)
+        add_icon("love.png","") 
         
-        # 3. Copyright (Changed fg to black)
-        Label(center_footer, text=" | © 2026", font=footer_font, bg=footer_bg, fg="black").pack(side=LEFT)
+        # Text before the link
+        Label(center_footer, text="by", font=("Times New Roman", 15, "bold"), 
+              bg=footer_bg).pack(side=LEFT, padx=5)
+
+        # CLICKABLE NAME: Replaces the static Label with a Button
+        btn_name = Button(center_footer, text="Ujjwal Kamila", font=("Times New Roman", 15, "bold"),
+                          bg=footer_bg, fg="black", activebackground=footer_bg,
+                          bd=0, cursor="hand2",
+                          command=lambda: webbrowser.open_new("https://ujjwal-kamila.vercel.app/"))
+        btn_name.pack(side=LEFT)
+
+        # Remaining part of the line
+        Label(center_footer, text="| © 2026", font=("Times New Roman", 15, "bold"), 
+              bg=footer_bg).pack(side=LEFT, padx=(5, 10))
+        
+        # add_icon("web.png", "https://ujjwal-kamila.vercel.app/")
+        # add_icon("global.png", "https://leetcode.com/u/ujjwalkamila/")
 
     def close(self):
         self.window.destroy()
