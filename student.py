@@ -57,14 +57,7 @@ class Student:
         # Updated Years
         OptionMenu(course, self.year, *["2022", "2023", "2024", "2025", "2026", "2027", "2028","2029","2030"]).place(x=508, y=110, height=39, width=190)
 
-        # self.dep.set("Select Department")
-        # OptionMenu(course, self.dep, *["IT","Civil","CS","Electrical"]).place(x=185, y=50, height=39, width=190)
-        # self.course.set("Select Course")
-        # OptionMenu(course, self.course, *["Data Structures","Web Developer","AI","Machine Learning"]).place(x=508, y=50, height=39, width=190)
-        # self.semester.set("Select Semester")
-        # OptionMenu(course, self.semester, *['1st', '2nd', '3rd', '4th', '5th', "6th", "7th", "8th"]).place(x=185, y=110, height=39, width=190)
-        # self.year.set("Select Year")
-        # OptionMenu(course, self.year, *[2024, 2023, 2022, 2021, 2020]).place(x=508, y=110, height=39, width=190)
+
 
         info = LabelFrame(left_frame, background="#fffaf0")
         info.place(x=0, y=179, height=300, width=728)

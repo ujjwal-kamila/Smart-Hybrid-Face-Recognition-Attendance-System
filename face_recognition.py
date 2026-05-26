@@ -8,17 +8,19 @@ import numpy as np
 import pickle
 import csv
 import smtplib
+import threading # Used to prevent camera freezing during popups/emails
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
-from tkinter import messagebox
+from tkinter import messagebox, Tk
 from database import get_frs_db
 import time
 
 def send_email_alert(student_email, student_name, time_marked):
-    # CHANGE THESE TWO LINES TO YOUR GMAIL DETAILS
     sender_email = "ujjwalkamila86@gmail.com" 
-    sender_password = "bdrj vxxz jlha bwyj" 
+    
+    # FIX 1: Removed the spaces from the Google App Password
+    sender_password = "bdrjvxxzjlhabwyj" 
 
     subject = "Attendance Successfully Marked"
     body = f"Hello {student_name},\n\nYour attendance for today has been successfully recorded at {time_marked} via the Face Recognition System.\n\nThank you!"
@@ -35,9 +37,48 @@ def send_email_alert(student_email, student_name, time_marked):
         server.login(sender_email, sender_password)
         server.send_message(msg)
         server.quit()
-        print(f"Email sent successfully to {student_email}")
+        show_popup("Email Sent", f"Attendance confirmation email sent to:\n{student_email}", "info")
+    except Exception as e:
+        # FIX 2: Pop up the EXACT error message so we can read why it failed!
+        error_msg = str(e)
+        show_popup("Email Error", f"Gmail refused to send the email.\nReason: {error_msg}", "error")
+
+def send_duplicate_email(student_email, student_name, time_marked):
+    # NEW FUNCTION: Sends an email if they are already marked
+    sender_email = "ujjwalkamila86@gmail.com" 
+    sender_password = "bdrj vxxz jlha bwyj" 
+
+    subject = "Attendance Alert - Already Marked"
+    body = f"Hello {student_name},\n\nOur Face Recognition System detected you again at {time_marked}.\nPlease note that your attendance for today has already been successfully recorded. You do not need to scan again.\n\nThank you!"
+
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = student_email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'plain'))
+
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.send_message(msg)
+        server.quit()
+        print(f"Duplicate email sent successfully to {student_email}")
     except Exception as e:
         print(f"Failed to send email: {e}")
+
+def show_popup(title, message, msg_type="info"):
+    # Runs the messagebox in a safe background thread so the camera doesn't freeze
+    def popup_thread():
+        root = Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        if msg_type == "info":
+            messagebox.showinfo(title, message, parent=root)
+        elif msg_type == "error":
+            messagebox.showerror(title, message, parent=root)
+        root.destroy()
+    threading.Thread(target=popup_thread, daemon=True).start()
 
 def mark_attendance(student_id, name):
     now = datetime.now()
@@ -59,12 +100,12 @@ def mark_attendance(student_id, name):
             else:
                 newly_marked = False 
         except Exception as e:
-            messagebox.showerror("Database Error", f"Failed to save attendance to MySQL!\nError: {str(e)}")
+            show_popup("Database Error", f"Failed to save attendance to MySQL!\nError: {str(e)}", "error")
             newly_marked = False
         finally:
             conn.close()
     else:
-        messagebox.showerror("Database Error", "Could not connect to the database.")
+        show_popup("Database Error", "Could not connect to the database.", "error")
 
     if newly_marked:
         try:
@@ -78,7 +119,7 @@ def mark_attendance(student_id, name):
                     writer.writerow(["StudentID", "Name", "Date", "Time", "Status"])
                 writer.writerow([student_id, name, d1, t1, "Present"])
         except Exception as e:
-            messagebox.showerror("File Error", f"Failed to save to Excel/CSV!\nError: {str(e)}")
+            show_popup("File Error", f"Failed to save to Excel/CSV!\nError: {str(e)}", "error")
 
     return newly_marked
 
@@ -89,7 +130,7 @@ def start_recognition():
     le_path = "models/label_encoder.pkl"
     
     if not os.path.exists(model_path) or not os.path.exists(le_path):
-        messagebox.showwarning("Error", "Model not found. Please click 'Train Data' first.")
+        show_popup("Error", "Model not found. Please click 'Train Data' first.", "error")
         return
         
     with open(model_path, "rb") as f:
@@ -125,10 +166,12 @@ def start_recognition():
     # Tracking dictionary to include strict Timeout for Liveness
     student_states = {} 
     MAX_DETECTIONS = 12 
-    MAX_TIMEOUT = 50 # How long they have to blink before being declined (approx 3-4 seconds)
+    MAX_TIMEOUT = 50 
 
-    # --- NEW: Initialize the Idle Timer ---
+    # --- Initialize the Idle Timer ---
     last_face_seen_time = time.time()
+    
+    exit_camera = False # NEW: Trigger used to kill the camera on spoofing
 
     while True:
         ret, frame = cap.read()
@@ -137,16 +180,14 @@ def start_recognition():
         frame_count += 1
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        # 60-Second Silent Timeout Check ---
-        # If no face is detected for 30 seconds, close the camera quietly
-        if time.time() - last_face_seen_time > 60:
+        # --- 30-Second Silent Timeout Check ---
+        if time.time() - last_face_seen_time > 30:
             break
 
-        # --- RECOGNITION (Runs every 3 frames to save CPU) ---
+        # --- RECOGNITION ---
         if frame_count % 3 == 0:
             faces = face_cascade.detectMultiScale(gray, scaleFactor=1.2, minNeighbors=5)
 
-            # --- NEW: Reset the timer if any face is detected ---
             if len(faces) > 0:
                 last_face_seen_time = time.time()
 
@@ -173,21 +214,19 @@ def start_recognition():
                     name = student_info["name"]
                     student_email = student_info["email"]
 
-                    # Initialize state for new faces
                     if student_id not in student_states:
                         student_states[student_id] = {
                             "count": 0, 
                             "eyes_closed_frames": 0, 
                             "has_blinked": False, 
                             "marked": False,
-                            "timeout": 0 # NEW: Tracks how long they've been asked to blink
+                            "timeout": 0 
                         }
                     
                     if student_states[student_id]["marked"]:
                         progress_text = "Attendance: Saved"
-                        color = (255, 255, 0) # Cyan/Yellow
+                        color = (255, 255, 0)
                     else:
-                        # Stop counting once we reach the max
                         if student_states[student_id]["count"] < MAX_DETECTIONS:
                             student_states[student_id]["count"] += 1
                             
@@ -195,35 +234,33 @@ def start_recognition():
                         progress_pct = int((current_count / MAX_DETECTIONS) * 100)
                         
                         if progress_pct >= 100:
-                            # --- STRICT LIVENESS GATE ---
+                            # --- LIVENESS GATE ---
                             if not student_states[student_id]["has_blinked"]:
                                 student_states[student_id]["timeout"] += 1
                                 time_left = MAX_TIMEOUT - student_states[student_id]["timeout"]
                                 
                                 progress_text = f"Please Blink! ({time_left})"
-                                color = (0, 165, 255) # Orange (Warning)
+                                color = (0, 165, 255) 
                                 
-                                # Analyze only the top half of the face for eyes
                                 roi_gray = gray[y:y+int(h/2), x:x+w]
-                                eyes = eye_cascade.detectMultiScale(roi_gray, scaleFactor=1.1, minNeighbors=6, minSize=(15, 15))
+                                eyes = eye_cascade.detectMultiScale(roi_gray, scaleFactor=1.1, minNeighbors=5, minSize=(15, 15))
                                 
                                 if len(eyes) == 0:
                                     student_states[student_id]["eyes_closed_frames"] += 1
                                 else:
-                                    # If eyes were closed previously, it's a blink!
-                                    if student_states[student_id]["eyes_closed_frames"] >= 1:
+                                    closed_frames = student_states[student_id]["eyes_closed_frames"]
+                                    if 1 <= closed_frames <= 15:
                                         student_states[student_id]["has_blinked"] = True
-                                    
-                                    # Reset the closed frame counter
+                                        
                                     student_states[student_id]["eyes_closed_frames"] = 0
                                 
-                                # --- DECLINE CONDITION ---
-                                # If the timeout reaches 0 and they still haven't blinked (e.g. holding a photo)
+                                # --- DECLINE CONDITION & POP-UP ---
                                 if student_states[student_id]["timeout"] > MAX_TIMEOUT:
-                                    # Completely reset their progress so they have to start over
-                                    student_states[student_id]["count"] = 0
-                                    student_states[student_id]["timeout"] = 0
-                                    student_states[student_id]["eyes_closed_frames"] = 0
+                                    # Show popup without freezing
+                                    show_popup("Liveness Failed", f"Spoofing Detected or No Blink!\n\nPlease look directly at the camera and blink normally.", "error")
+                                    # NEW: Trigger camera exit
+                                    exit_camera = True
+                                    break # Breaks out of the face loop
                             else:
                                 progress_text = "Saving..."
                                 color = (0, 255, 0)
@@ -231,10 +268,17 @@ def start_recognition():
                                 is_newly_marked = mark_attendance(student_id, name)
                                 student_states[student_id]["marked"] = True
                                 
+                                current_time = datetime.now().strftime("%H:%M:%S")
+                                
                                 if is_newly_marked:
                                     if student_email:
-                                        current_time = datetime.now().strftime("%H:%M:%S")
-                                        send_email_alert(student_email, name, current_time)
+                                        threading.Thread(target=send_email_alert, args=(student_email, name, current_time), daemon=True).start()
+                                    show_popup("Success", f"Attendance successfully saved for {name}!", "info")
+                                else:
+                                    # NEW: Trigger the "Already Marked" Email
+                                    if student_email:
+                                        threading.Thread(target=send_duplicate_email, args=(student_email, name, current_time), daemon=True).start()
+                                    show_popup("Info", f"Attendance was already marked for {name} today!", "info")
 
                         else:
                             progress_text = f"Scanning: {progress_pct}%"
@@ -244,19 +288,26 @@ def start_recognition():
                 else:
                     last_identities.append(("Unknown", "Unknown", "Scanning: 0%", (0, 0, 255))) 
 
-        # --- DRAW BOUNDING BOXES ---
-        for i, (x, y, w, h) in enumerate(last_faces):
-            if i < len(last_identities):
-                student_id, name, progress_text, color = last_identities[i]
-                cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
-                cv2.putText(frame, f"ID: {student_id}", (x, y-55), cv2.FONT_HERSHEY_DUPLEX, 0.8, color, 2)
-                cv2.putText(frame, f"Name: {name}", (x, y-30), cv2.FONT_HERSHEY_DUPLEX, 0.8, color, 2)
-                cv2.putText(frame, progress_text, (x, y-5), cv2.FONT_HERSHEY_DUPLEX, 0.7, color, 2)
+            # NEW: Immediately exit camera if spoofing triggered
+            if exit_camera:
+                break
 
-        cv2.imshow("Face Recognition - Press ESC to Exit", frame)
-        
-        if cv2.waitKey(1) == 27 or cv2.getWindowProperty("Face Recognition - Press ESC to Exit", cv2.WND_PROP_VISIBLE) < 1:
-            break
+        # Ensure we only try to draw if exit wasn't triggered
+        if not exit_camera:
+            for i, (x, y, w, h) in enumerate(last_faces):
+                if i < len(last_identities):
+                    student_id, name, progress_text, color = last_identities[i]
+                    cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
+                    cv2.putText(frame, f"ID: {student_id}", (x, y-55), cv2.FONT_HERSHEY_DUPLEX, 0.8, color, 2)
+                    cv2.putText(frame, f"Name: {name}", (x, y-30), cv2.FONT_HERSHEY_DUPLEX, 0.8, color, 2)
+                    cv2.putText(frame, progress_text, (x, y-5), cv2.FONT_HERSHEY_DUPLEX, 0.7, color, 2)
+
+            cv2.imshow("Face Recognition - Press ESC to Exit", frame)
+            
+            if cv2.waitKey(1) == 27 or cv2.getWindowProperty("Face Recognition - Press ESC to Exit", cv2.WND_PROP_VISIBLE) < 1:
+                break
+        else:
+            break # Break main loop if exit triggered
 
     cap.release()
     cv2.destroyAllWindows()
