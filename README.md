@@ -11,6 +11,7 @@
 - [Database Schema](#database-schema)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
+- [Screenshots](#screenshots)
 - [License](#license)
 
 ---
@@ -35,7 +36,8 @@
 ### 🔐 Authentication & Login
 - Email-based login system (login.py)
 - Password recovery via email with automatic sending
-- Role-based access (User/Admin)
+- Admin role authentication
+- All new users sign up as regular users by default
 - Credentials stored securely in MySQL
 - Forgot Password functionality with email integration
 
@@ -88,7 +90,7 @@
 ✓ MySQL Server (Local or Remote)
 ✓ Webcam/Camera device
 ✓ Windows 10/11 OS
-✓ 4GB RAM minimum
+✓ 8GB RAM minimum
 ✓ Internet connection (for email)
 ```
 
@@ -125,7 +127,7 @@ tensorflow                # Deep learning backend
 
 ### Step 4: Setup MySQL Database
 
-**Create two databases:**
+**Create Admin Account First (In MySQL Terminal):**
 
 ```sql
 -- Database 1: Credentials
@@ -139,6 +141,16 @@ CREATE TABLE details (
     Mobile VARCHAR(15),
     Password VARCHAR(100),
     Role ENUM('User', 'Admin') DEFAULT 'User'
+);
+
+-- Insert Admin Account
+INSERT INTO details VALUES (
+    'admin@example.com',
+    'Admin',
+    'User',
+    '1234567890',
+    'admin123',
+    'Admin'
 );
 
 -- Database 2: Face Recognition System
@@ -185,7 +197,7 @@ mkdir models
 ```
 
 ### Step 7: Add Logo Image
-- Place `Makaut_logo.png` in `Images/` folder
+- Place all logos like `Makaut_logo.png` in `Images/` folder
 
 ### Step 8: Run Application
 ```bash
@@ -201,8 +213,8 @@ Smart Hybrid Face Recognition Attendance System/
 │
 ├── Core Application Files
 │   ├── main.py                      # Entry point
-│   ├── login.py                     # Login & Sign-up interface
-│   ├── register.py                  # User registration
+│   ├── login.py                     # Login interface (Admin only)
+│   ├── register.py                  # User registration (Sign up as User)
 │   ├── dashboard.py                 # Main dashboard
 │   ├── database.py                  # Database connection handlers
 │   └── newvxt.py                    # Additional config
@@ -214,7 +226,7 @@ Smart Hybrid Face Recognition Attendance System/
 │   ├── train.py                     # Model training script
 │   ├── face_recognition_ui.py       # Face recognition interface
 │   ├── classifier.xml               # Face detection cascade file
-│   └── harrcascade_frontalface_default.xml
+│   └── harrcascade_frontalface_default.xml  # Get in Github OpenCv 
 │
 ├── Data Directories
 │   ├── Faces/                       # Face image dataset (per student)
@@ -250,18 +262,16 @@ Smart Hybrid Face Recognition Attendance System/
 ### 1️⃣ Login Screen (login.py)
 ```
 1. Run: python main.py
-2. Enter Email (Username) & Password
-3. Role: Admin or User
-4. Click "Login" button
-5. Use "Forgot Password?" for password recovery
+2. Enter Admin Email & Password or Register 
+3. Click "Login" button
+4. Use "Forgot Password?" for password recovery
 ```
 
-**Demo Credentials:**
-```
-Email: ujjwalkamila86@gmail.com
-Password: 8101193171
-Role: Admin
-```
+**Login Notes:**
+- Admin credentials are created in MySQL terminal first
+- Only Admin can access the system
+- Regular users cannot login directly
+- Password recovery sends to registered email
 
 ### 2️⃣ Sign Up / Register (register.py)
 ```
@@ -273,9 +283,9 @@ Fill Details:
 - Last Name
 - Mobile Number
 - Password
-- Role: User or Admin
 
-Account created and stored in credentials database
+Note: All new registrations are signed up as "User" role
+      Users are managed through student database
 ```
 
 ### 3️⃣ Register New Student (student.py)
@@ -291,12 +301,12 @@ Fill Details:
 - Mobile, Email
 - School, Parent Name, DOB, Address
 
-Click "Take Samples" → Capture 50+ face images
+Click "Take Samples" → Capture 100 face images
 ```
 
 ### 4️⃣ Train the Model (train.py)
 ```
-From Dashboard → Train Hybrid Model
+From Dashboard → Train Model
 
 Process:
 1. Extracts FaceNet embeddings from all Faces/ folders
@@ -357,60 +367,17 @@ Operations:
 ```
 From Login Screen → Click "Forgot Password?"
 
-1. Enter registered email
+1. Enter registered admin email
 2. System retrieves password from database
 3. Sends password to email via SMTP
-4. Email received: "Your registered password is: xxxxxxxx"
+4. Email received with admin credentials
 ```
 
 ---
 
 ## 🏗️ System Architecture
 
-```
-┌─────────────────────────────────────────────────────┐
-│              main.py (Entry Point)                  │
-└────────────────────┬────────────────────────────────┘
-                     │
-     ┌───────────────┴───────────────┐
-     │                               │
-     ▼                               ▼
-┌─────────────┐              ┌──────────────┐
-│  login.py   │◄─────────────┤ database.py  │
-│ (Auth)      │              │(MySQL Conn)  │
-└──────┬──────┘              └──────────────┘
-       │
-       ├─ Credentials DB
-       │  └─ details table
-       │
-       ▼
-┌──────────────────────┐
-│  dashboard.py        │ ◄─────────────────────┐
-│  (Main Dashboard)    │                       │
-└────┬────────────────┘                        │
-     │                                         │
-     ├──────┬──────────┬──────────┐            │
-     │      │          │          │            │
-     ▼      ▼          ▼          ▼            │
-┌────────┬────────┬──────────┬─────────┐      │
-│student │train.py│  face_   │attendance│      │
-│.py     │(Model) │recogn.  │.py      │      │
-│(CRUD)  │        │.py      │(Report) │      │
-│        │        │(Real-   │         │      │
-│        │        │time)    │         │      │
-└────────┴────────┴─────┬───┴─────────┘      │
-                        │                     │
-                ┌───────┴──────────┐          │
-                │                  │          │
-           Faces/            FRS DB           │
-          (Dataset)        └─ student         │
-                           └─ attendance     │
-                                            │
-                    ┌───────────────────────┘
-                    │ (Email Notifications)
-                    ▼
-              SMTP Gmail Server
-```
+![System Architecture](Screenshots/system_architecture.jpg)
 
 ---
 
@@ -419,6 +386,9 @@ From Login Screen → Click "Forgot Password?"
 ### Credentials Database (`credentials`)
 
 #### Table: `details`
+
+![Credentials Table](Screenshots/credentials_table.jpg)
+
 ```
 Column      | Type         | Constraint  | Purpose
 ------------|--------------|-------------|------------------------
@@ -430,19 +400,22 @@ Password    | VARCHAR(100) | -           | Login password
 Role        | ENUM         | -           | 'User' or 'Admin'
 ```
 
-**Sample Data:**
+**Admin Sample Data:**
 ```
-Email: ujjwalkamila86@gmail.com
-FirstName: ujjwal
-LastName: kamila
-Mobile: 9876543210
-Password: 8101193171
+Email: admin@example.com
+FirstName: Admin
+LastName: User
+Mobile: 1234567890
+Password: admin123
 Role: Admin
 ```
 
 ### FRS Database (`frs`)
 
 #### Table: `student`
+
+![Student Table](Screenshots/student_table.jpg)
+
 ```
 Column      | Type         | Constraint  | Purpose
 ------------|--------------|-------------|------------------------
@@ -477,6 +450,9 @@ Address: kalyani
 ```
 
 #### Table: `attendance`
+
+![Attendance Table](Screenshots/attendance_table.jpg)
+
 ```
 Column      | Type         | Constraint  | Purpose
 ------------|--------------|-------------|------------------------
@@ -498,12 +474,34 @@ Time: 14:49:17
 Status: Present
 
 ID: 2
-StudentID: 1234
-Name: ujjwal
-Date: 2026-06-02
-Time: 10:38:20
+StudentID: 1001
+Name: roni
+Date: 2026-06-01
+Time: 15:20:45
 Status: Present
 ```
+
+---
+
+## 📸 Screenshots
+
+### Login Screen
+![Login Screen](Screenshots/login_screen.jpg)
+
+### Dashboard
+![Dashboard](Screenshots/dashboard.jpg)
+
+### Student Registration
+![Student Registration](Screenshots/student_registration.jpg)
+
+### Face Recognition
+![Face Recognition](Screenshots/face_recognition.jpg)
+
+### Attendance Report
+![Attendance Report](Screenshots/attendance_report.jpg)
+
+### Model Training
+![Model Training](Screenshots/model_training.jpg)
 
 ---
 
@@ -551,6 +549,7 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '-1'   # Force CPU mode
 | **Blinking not detected** | Lighting issue | Improve camera lighting conditions |
 | **"Please Blink!" stays on** | Liveness detection fails | Try different angles/lighting |
 | **Attendance CSV export fails** | Permission denied | Check folder write permissions |
+| **Login fails** | Not admin account | Only admin accounts can login |
 
 ---
 
@@ -590,7 +589,7 @@ Subject: Password Recovery
 
 Hello,
 
-Your registered password is: 8101193171
+Your registered password has been sent to your email.
 
 Please keep it safe.
 ```
@@ -682,7 +681,6 @@ ORDER BY Time;
 ID | StudentID | Name    | Date       | Time     | Status
 1  | 1234      | ujjwal  | 2026-06-01 | 14:49:17 | Present
 2  | 1001      | roni    | 2026-06-01 | 15:20:45 | Present
-3  | 1234      | ujjwal  | 2026-06-01 | (duplicate check) - NOT INSERTED
 ```
 
 ---
@@ -765,6 +763,12 @@ A: Export CSV from Attendance module or MySQL dump
 
 **Q: Can I run this on Mac/Linux?**
 A: Yes, update file paths and email credentials
+
+**Q: How do I create an admin account?**
+A: Create admin in MySQL terminal with Role='Admin' before running app
+
+**Q: Can regular users login?**
+A: No, only admin accounts can login. Regular users are managed through student database
 
 ---
 
