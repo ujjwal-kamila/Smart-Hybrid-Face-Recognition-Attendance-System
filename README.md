@@ -28,6 +28,7 @@
 - ✅ MySQL database integration
 - ✅ Admin authentication system
 - ✅ Attendance reports (CSV export)
+- ✅ Manual attendance management
 
 ---
 
@@ -36,7 +37,7 @@
 ### 🔐 Authentication & Login
 - Email-based login system (login.py)
 - Password recovery via email with automatic sending
-- Admin role authentication
+- Admin and User authentication
 - All new users sign up as regular users by default
 - Credentials stored securely in MySQL
 - Forgot Password functionality with email integration
@@ -46,7 +47,7 @@
   - Student ID, Name, Department, Course
   - Semester, Year, Mobile, Email
   - School, Parent Name, DOB, Address
-- Real-time dataset capture (50+ face samples)
+- Real-time dataset capture (100+ face samples)
 - Update and delete student profiles
 - Search functionality
 
@@ -59,10 +60,13 @@
 - Face detection with bounding boxes
 - Confidence scoring system
 - Blinking verification for liveness detection
+- Spoofing detection (anti-fake face presentation)
 
 ### 📊 Attendance Management (attendance.py)
-- Auto-detection and marking
-- Prevents duplicate attendance (same day)
+- Auto-detection and marking via face recognition
+- Manual attendance management (Admin only)
+- Admin can update attendance status: Present ↔ Absent
+- Prevents duplicate attendance (same day auto-detection)
 - Email alerts with timestamp
 - Attendance dashboard view
 - CSV import/export functionality
@@ -80,6 +84,7 @@
 - CSV export for analysis
 - Filter by date range
 - Student-wise attendance tracking
+- Manual update capability
 
 ---
 
@@ -213,7 +218,7 @@ Smart Hybrid Face Recognition Attendance System/
 │
 ├── Core Application Files
 │   ├── main.py                      # Entry point
-│   ├── login.py                     # Login interface (Admin only)
+│   ├── login.py                     # Login interface (Admin & User)
 │   ├── register.py                  # User registration (Sign up as User)
 │   ├── dashboard.py                 # Main dashboard
 │   ├── database.py                  # Database connection handlers
@@ -236,7 +241,8 @@ Smart Hybrid Face Recognition Attendance System/
 │   │   └── ...
 │   │
 │   ├── Images/                      # UI images & logos
-│   │   └── Makaut_logo.png
+│   │   ├── Makaut_logo.png
+│   │   └── Screenshots/             # Application screenshots
 │   │
 │   ├── models/                      # ML models
 │   │   ├── label_encoder.pkl        # LabelEncoder (student IDs)
@@ -260,20 +266,28 @@ Smart Hybrid Face Recognition Attendance System/
 ## 💻 Usage Guide
 
 ### 1️⃣ Login Screen (login.py)
+
+![Login Screen](Images/Screenshots/login_screen.png)
+
 ```
 1. Run: python main.py
-2. Enter Admin Email & Password or Register 
-3. Click "Login" button
-4. Use "Forgot Password?" for password recovery
+2. Enter Email & Password
+3. Select Role: Admin or User
+4. Click "Login" button
+5. Use "Forgot Password?" for password recovery
 ```
 
-**Login Notes:**
-- Admin credentials are created in MySQL terminal first
-- Only Admin can access the system
-- Regular users cannot login directly
-- Password recovery sends to registered email
+**Login Options:**
+- **Admin Login**: Access full system including manual attendance management
+- **User Login**: Limited access to system features
+- **Password Recovery**: Automatic email sending
+
+---
 
 ### 2️⃣ Sign Up / Register (register.py)
+
+![Sign Up Screen](Images/Screenshots/register_screen.png)
+
 ```
 From Login Screen → Click "Sign Up"
 
@@ -283,101 +297,303 @@ Fill Details:
 - Last Name
 - Mobile Number
 - Password
+- Confirm Password
 
 Note: All new registrations are signed up as "User" role
-      Users are managed through student database
+      Users can later be promoted to Admin in database
 ```
 
-### 3️⃣ Register New Student (student.py)
-```
-From Dashboard → Student Management → Add Student
+---
 
-Fill Details:
+### 3️⃣ Dashboard Navigation
+
+![Dashboard](Images/Screenshots/dashboard.png)
+
+```
+Main Dashboard Features:
+- 👤 Student Details - Register and manage students
+- 📋 Attendance Records - View/manage attendance
+- 📸 Face Recognition - Real-time attendance marking
+- 🧠 Train Model - Train hybrid ML model
+- 👥 Manage Face Samples - Capture face images
+- ❌ Exit - Close application
+```
+
+---
+
+### 4️⃣ Register New Student (student.py)
+
+![Student Details Page](Images/Screenshots/student_details_page.png)
+
+```
+From Dashboard → Student Details
+
+Fill Student Information:
 - Student ID (1001, 1234, etc.)
 - Name
 - Department (CS, IT, etc.)
-- Course (AI, ML, etc.)
+- Course (AI, ML, Web Dev, etc.)
 - Semester, Year
 - Mobile, Email
-- School, Parent Name, DOB, Address
+- School Name, Parent Name
+- Date of Birth, Address
 
-Click "Take Samples" → Capture 100 face images
+Operations:
+- Save: Add new student
+- Update: Modify existing student
+- Delete: Remove student record
+- Take Photo Sample: Capture 100 face images
+
+Buttons:
+- Save → Save student details
+- Update → Update after modifications
+- Delete → Remove from database
+- Take Photo Sample → Capture face dataset
+- Reset → Clear all fields
+- Back → Return to dashboard
 ```
 
-### 4️⃣ Train the Model (train.py)
+---
+
+### 5️⃣ Train the Hybrid Model (train.py)
+
+![Training Started](Images/Screenshots/training_start.png)
+![Training Completed](Images/Screenshots/trained_successfully.png)
+
 ```
 From Dashboard → Train Model
 
 Process:
-1. Extracts FaceNet embeddings from all Faces/ folders
-2. Encodes student IDs using LabelEncoder
-3. Trains SVM classifier on embeddings
-4. Saves: label_encoder.pkl & svm_facenet_model.pkl
-5. Shows: "Hybrid Model Training completed successfully!"
+1. System reads all face images from Faces/StudentID/ folders
+2. Extracts FaceNet embeddings (128-dimensional vectors)
+3. Encodes student IDs using LabelEncoder
+4. Trains SVM classifier with RBF kernel
+5. Saves two model files:
+   - label_encoder.pkl (Student ID mappings)
+   - svm_facenet_model.pkl (Trained classifier)
+6. Shows completion message
 
-Time: 2-5 minutes depending on dataset size
+Status Messages:
+- "Training Started. Click OK to watch the training progress..."
+- "Hybrid Model Training completed successfully! Saved as svm_facenet_model.pkl"
+
+Training Time: 2-5 minutes depending on:
+- Number of students
+- Number of samples per student
+- System specifications
 ```
 
-### 5️⃣ Mark Attendance (face_recognition.py)
+---
+
+### 6️⃣ Real-time Face Recognition (face_recognition.py)
+
+![Face Recognition - Scanning](Images/Screenshots/check_liveness_using_fake_phone_photo.png)
+![Face Recognition - Detected](Images/Screenshots/check_using_fake_phone_photo.png)
+![Liveness Check Failed](Images/Screenshots/failed_detect_using_fake_phone_photo.png)
+
 ```
 From Dashboard → Face Recognition
 
-Process:
+Real-time Attendance Process:
 1. Webcam activates automatically
-2. Real-time face detection starts
-3. Compares face with trained model
-4. Auto-marks attendance if match found (confidence > threshold)
-5. Shows: ID, Name, Confidence Score
-6. Sends email confirmation to student
-7. Prevents duplicate marking (same day)
+2. Frame capture starts (30 FPS)
+3. Real-time face detection
+4. Face region extracted and resized (160x160)
+5. FaceNet embedding generated
+6. Compared against trained SVM model
+7. Liveness check: "Please Blink!" verification
+8. If match found & alive:
+   - Mark attendance in database
+   - Send email confirmation
+   - Display success message
+
+Status Indicators:
+🟠 Orange: "Scanning..." (searching for face)
+🔵 Cyan: "Please Blink!" (liveness verification)
+🟡 Yellow: "Please Blink! (1/2/3)" (blink attempt counter)
+🔴 Red: "Spoofing Detected or No Blink" (anti-spoofing alert)
+🟢 Green: Attendance marked successfully ✓
 ```
 
-**Status Indicators:**
+**Anti-Spoofing Features:**
+- Blink detection required
+- Fake phone photo detection
+- 3D face verification
+- Real-time face presentation detection
+
+---
+
+### 7️⃣ Manual Attendance Management (attendance.py)
+
+**ADMIN ONLY FEATURE**
+
+![Manual Attendance Management](Images/Screenshots/manual_attendance_managamnet_system.png)
+
 ```
-🟢 Green: Scanning...
-🔵 Cyan: "Please Blink!" (face verification - liveness detection)
-🟡 Orange: "Please Blink! (X)" (multiple blink attempts)
-🟢 Green: "Attendance: Saved" ✓
+From Dashboard → Attendance Records (Admin Access)
+
+Manual Management Features:
+1. View all attendance records in table format
+   - Columns: ID, StudentID, Name, Date, Time, Status
+   
+2. Manual Update Capability (Admin Only):
+   - Student ID: 1234
+   - Name: ujjwal
+   - Date: 25/05/2026
+   - Time: 12:02:38
+   - Status: Change Present ↔ Absent
+   
+3. Update Attendance Status:
+   - Select a record from the table
+   - Click status dropdown (Present/Absent)
+   - Click "Update" button
+   - Change is saved to database
+
+4. Admin Operations:
+   - Update: Modify attendance (Present/Absent toggle)
+   - Reset: Clear all fields
+   - Import File: Load attendance from CSV
+   - Export File: Save attendance to CSV
+   - Back: Return to dashboard
+
+5. Search & Filter:
+   - Filter by date range
+   - Search by Student ID or Name
+   - View all records or specific date
+
+Benefits:
+✅ Correct erroneous entries
+✅ Add manual entries for absences
+✅ Update late markings
+✅ Manage special cases
+✅ Maintain accurate records
 ```
 
-### 6️⃣ View Attendance Reports (attendance.py)
-```
-From Dashboard → Attendance
+---
 
-Features:
-- View all attendance records in table format
-- Columns: ID, StudentID, Name, Date, Time, Status
-- Filter by date range
-- Export to CSV file
-- Search functionality
+### 8️⃣ Email Notifications
+
+![Attendance Email](Images/Screenshots/attendance_recorded_mail_to_the_student.png)
+![Password Recovery Email](Images/Screenshots/password_recovery_email.jpg)
+![Email Sent Notification](Images/Screenshots/email_sent_notification.jpg)
+![Password Sent Notification](Images/Screenshots/forget_pass_send_in_mail.png)
+
+```
+Automated Email System:
+
+1. Attendance Confirmation Email (Auto-sent):
+   Subject: "Attendance Successfully Marked"
+   Body: 
+   - Student name
+   - Date and time marked
+   - Confirmation via Face Recognition System
+   
+2. Password Recovery Email (On Request):
+   Subject: "Password Recovery"
+   Body:
+   - Registered password
+   - Security reminder
+   
+3. Email Notifications:
+   Popup confirmations:
+   - "Attendance confirmation email sent to: ujjwal@gmail.com"
+   - "Password successfully sent to your respected email id."
+
+Email Configuration:
+- Sender: ujjwalkamila86@gmail.com
+- App Password: bdrj vxxz jlha bwyj
+- SMTP: smtp.gmail.com
+- Port: 587
 ```
 
-### 7️⃣ Manage Students (student.py)
-```
-From Dashboard → Student Management
+---
 
-Operations:
-- ✏️ Update student info (click row, modify, update)
-- 🗑️ Delete student record
-- 🔍 Search by ID/Name
-- View all registered students
+### 9️⃣ Attendance Success Messages
+
+![Success Message](Images/Screenshots/save_attendece_popup.png)
+
+```
+Confirmation Popups:
+
+1. Attendance Saved Successfully:
+   "Attendance successfully saved for ujjwal"
+   
+2. Record Updated:
+   Shows when manual attendance is updated
+   
+3. Email Confirmation:
+   "Attendance confirmation email sent to: ujjwal@gmail.com"
+   
+4. System Messages:
+   Displays during all operations with status updates
 ```
 
-### 8️⃣ Forgot Password (login.py)
-```
-From Login Screen → Click "Forgot Password?"
+---
 
-1. Enter registered admin email
-2. System retrieves password from database
-3. Sends password to email via SMTP
-4. Email received with admin credentials
+### 🔟 Admin Update Student Data
+
+![Admin Update](Images/Screenshots/admin_update_student_data.png)
+
+```
+Admin Panel Features:
+
+Admin can:
+1. Update Student Information
+   - All student fields editable
+   - Save changes to database
+   - Track modifications
+
+2. Manual Attendance Corrections
+   - Change Present → Absent
+   - Change Absent → Present
+   - Update date/time if needed
+   - Correct system errors
+
+3. Attendance Management
+   - Override auto-marked records
+   - Add manual entries
+   - Remove erroneous entries
+   - Generate accurate reports
+
+Admin Restrictions:
+- Only admin accounts can access these features
+- User accounts have limited visibility
+- Actions are logged for audit trail
 ```
 
 ---
 
 ## 🏗️ System Architecture
 
-![System Architecture](Screenshots/system_architecture.jpg)
+![System Architecture Diagram](Images/Screenshots/system_arch.png)
+
+```
+Complete Application Flow:
+
+User Input Layer:
+├── Login/Register (login.py, register.py)
+├── Student Management (student.py)
+├── Attendance Management (attendance.py)
+└── Face Recognition (face_recognition.py)
+
+Processing Layer:
+├── FaceNet Embeddings (keras-facenet)
+├── SVM Classifier (scikit-learn)
+├── Face Detection (OpenCV)
+└── Liveness Detection (blink verification)
+
+Database Layer:
+├── Credentials DB (admin/user accounts)
+└── FRS DB (students & attendance)
+
+Output Layer:
+├── Email Notifications (SMTP)
+├── CSV Reports (attendance.py)
+└── Real-time Display (Tkinter GUI)
+
+Flow:
+main.py → Login → Dashboard → Modules → Database/Email
+```
 
 ---
 
@@ -386,8 +602,6 @@ From Login Screen → Click "Forgot Password?"
 ### Credentials Database (`credentials`)
 
 #### Table: `details`
-
-![Credentials Table](Screenshots/credentials_table.jpg)
 
 ```
 Column      | Type         | Constraint  | Purpose
@@ -400,21 +614,15 @@ Password    | VARCHAR(100) | -           | Login password
 Role        | ENUM         | -           | 'User' or 'Admin'
 ```
 
-**Admin Sample Data:**
+**Sample Data:**
 ```
-Email: admin@example.com
-FirstName: Admin
-LastName: User
-Mobile: 1234567890
-Password: admin123
-Role: Admin
+Email: admin@example.com | admin123 | Admin
+Email: user@example.com | user123 | User
 ```
 
 ### FRS Database (`frs`)
 
 #### Table: `student`
-
-![Student Table](Screenshots/student_table.jpg)
 
 ```
 Column      | Type         | Constraint  | Purpose
@@ -433,25 +641,7 @@ DOB         | DATE         | -           | Date of birth
 Address     | VARCHAR(255) | -           | Residential address
 ```
 
-**Sample Data:**
-```
-StudentID: 1234
-Name: ujjwal
-Department: CS
-Course: AI
-Semester: 7
-Year: 2022
-Mobile: 9876543210
-Email: ujjwal@gmail.com
-School: makaut
-Parent_Name: ujjwal kamila
-DOB: 2000-12-11
-Address: kalyani
-```
-
 #### Table: `attendance`
-
-![Attendance Table](Screenshots/attendance_table.jpg)
 
 ```
 Column      | Type         | Constraint  | Purpose
@@ -464,44 +654,38 @@ Time        | TIME         | -           | Mark time
 Status      | ENUM         | -           | 'Present' or 'Absent'
 ```
 
-**Sample Data:**
-```
-ID: 1
-StudentID: 1234
-Name: ujjwal
-Date: 2026-06-01
-Time: 14:49:17
-Status: Present
-
-ID: 2
-StudentID: 1001
-Name: roni
-Date: 2026-06-01
-Time: 15:20:45
-Status: Present
-```
-
 ---
 
-## 📸 Screenshots
+## 📸 Screenshots Overview
 
-### Login Screen
-![Login Screen](Screenshots/login_screen.jpg)
+### Application Screens
+- **login_screen.png** - Initial login interface
+- **register_screen.png** - User registration form
+- **dashboard.png** - Main dashboard with all modules
+- **student_details_page.png** - Student management interface
+- **admin_update_student_data.png** - Admin panel for updates
 
-### Dashboard
-![Dashboard](Screenshots/dashboard.jpg)
+### Face Recognition Screens
+- **check_liveness_using_fake_phone_photo.png** - Anti-spoofing detection
+- **check_using_fake_phone_photo.png** - Fake face detection
+- **failed_detect_using_fake_phone_photo.png** - Detection failure alert
 
-### Student Registration
-![Student Registration](Screenshots/student_registration.jpg)
+### Attendance Management
+- **manual_attendance_managamnet_system.png** - Admin attendance control
+- **save_attendece_popup.png** - Success confirmation
 
-### Face Recognition
-![Face Recognition](Screenshots/face_recognition.jpg)
+### Training & Processing
+- **training_start.png** - Training initiation
+- **trained_successfully.png** - Training completion
 
-### Attendance Report
-![Attendance Report](Screenshots/attendance_report.jpg)
+### Email & Notifications
+- **attendance_recorded_mail_to_the_student.png** - Attendance email
+- **password_recovery_email.jpg** - Password recovery email
+- **email_sent_notification.jpg** - Email sent confirmation
+- **forget_pass_send_in_mail.png** - Password sent notification
 
-### Model Training
-![Model Training](Screenshots/model_training.jpg)
+### System Diagrams
+- **system_arch.png** - Complete system architecture
 
 ---
 
@@ -544,12 +728,12 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '-1'   # Force CPU mode
 | **MySQL connection error** | Wrong credentials | Update DB_PASSWORD in database.py |
 | **Email not sending** | SMTP auth failed | Use Gmail app password, enable 2FA |
 | **Model training fails** | Empty Faces/ folder | Ensure Faces/StudentID/ has images |
-| **Duplicate attendance** | Same-day marking | System prevents this automatically |
-| **TensorFlow warnings** | Library logs | These are suppressed in main.py |
-| **Blinking not detected** | Lighting issue | Improve camera lighting conditions |
-| **"Please Blink!" stays on** | Liveness detection fails | Try different angles/lighting |
+| **Fake face detected** | Spoofing attempt | Use real face, improve lighting |
+| **Blink not detected** | Lighting issue | Improve camera lighting conditions |
+| **Manual update fails** | Not admin account | Login as admin to update attendance |
+| **Cannot change status** | Permission denied | Admin access required for updates |
 | **Attendance CSV export fails** | Permission denied | Check folder write permissions |
-| **Login fails** | Not admin account | Only admin accounts can login |
+| **Login fails** | Wrong credentials | Verify email/password in credentials DB |
 
 ---
 
@@ -569,31 +753,6 @@ SMTP Server: smtp.gmail.com
 Port: 587
 ```
 
-### Email Templates
-
-**Attendance Confirmation:**
-```
-Subject: Attendance Successfully Marked
-
-Hello ujjwal,
-
-Your attendance for today has been successfully recorded at 20:09:59 
-via Face Recognition System.
-
-Thank you!
-```
-
-**Password Recovery:**
-```
-Subject: Password Recovery
-
-Hello,
-
-Your registered password has been sent to your email.
-
-Please keep it safe.
-```
-
 ---
 
 ## 🎓 How It Works - Technical Details
@@ -602,7 +761,7 @@ Please keep it safe.
 
 #### Training Phase (train.py)
 ```
-1. Load images from Faces/StudentID/ directories
+1. Load 100+ images per student from Faces/StudentID/
 2. For each image:
    a) Detect face using OpenCV Cascade Classifier
    b) Extract face region (crop & resize to 160x160)
@@ -610,77 +769,34 @@ Please keep it safe.
 3. Encode Student IDs: 0, 1, 2, ... using LabelEncoder
 4. Train SVM classifier:
    - Input: Face embeddings (128 dimensions)
-   - Output: Student ID (0-n)
+   - Output: Student ID
    - Kernel: RBF (Radial Basis Function)
 5. Save models:
-   - label_encoder.pkl (stores mapping)
-   - svm_facenet_model.pkl (trained classifier)
+   - label_encoder.pkl
+   - svm_facenet_model.pkl
 ```
 
 #### Recognition Phase (face_recognition.py)
 ```
-1. Capture frame from webcam (30 FPS)
+1. Capture webcam frames (30 FPS)
 2. Detect faces using Cascade Classifier
-3. For each detected face:
-   a) Extract face region (160x160)
-   b) Generate FaceNet embedding
-   c) Pass to SVM classifier
-   d) Get prediction + confidence score
-4. If confidence > threshold (0.6):
+3. Extract face region & generate embedding
+4. Pass to SVM classifier
+5. If confidence > 0.6:
    a) Get student ID from LabelEncoder
-   b) Mark attendance in database
-   c) Send email notification
-   d) Prevent duplicate (check same-day record)
-5. Display: ID, Name, Confidence Score
+   b) Verify liveness (blink detection)
+   c) Mark attendance if all checks pass
+   d) Send email confirmation
+   e) Prevent duplicate (same-day check)
 ```
 
-### FaceNet Embeddings
-- **Input**: Face image (160x160 pixels)
-- **Process**: Deep CNN extracts features
-- **Output**: 128-dimensional vector
-- **Property**: Similar faces have close embeddings
-
-### SVM Classifier
-- **Training**: Learns decision boundaries between student embeddings
-- **Kernel**: RBF for non-linear separation
-- **Confidence**: Distance from decision boundary
-- **Decision**: Max probability class
-
----
-
-## 📊 Sample Outputs
-
-### Console Training Output
+#### Manual Update Phase (attendance.py - Admin Only)
 ```
-Training Started...
-Processing: 1234/ujjwal
-Embedding 1 extracted: [0.23, -0.15, 0.89, ...]
-Embedding 2 extracted: [0.22, -0.14, 0.88, ...]
-Embedding 3 extracted: [0.24, -0.16, 0.87, ...]
-...
-Hybrid Model Training completed successfully!
-Saved as svm_facenet_model.pkl
-```
-
-### Real-time Recognition Output
-```
-Frame 1: Scanning...
-Frame 2: Scanning...
-Frame 3: ID: 1234 | Name: ujjwal | Scanning: 59%
-Frame 4: ID: 1234 | Name: ujjwal | Please Blink! (1)
-Frame 5: ID: 1234 | Name: ujjwal | Scanning: 89%
-Frame 6: ID: 1234 | Name: ujjwal | Attendance: Saved ✓
-```
-
-### Database Query Results
-```sql
-SELECT * FROM attendance 
-WHERE Date = '2026-06-01' 
-ORDER BY Time;
-
-ID | StudentID | Name    | Date       | Time     | Status
-1  | 1234      | ujjwal  | 2026-06-01 | 14:49:17 | Present
-2  | 1001      | roni    | 2026-06-01 | 15:20:45 | Present
+1. Admin selects record from table
+2. Changes status: Present ↔ Absent
+3. Clicks "Update" button
+4. System updates database
+5. Changes reflected immediately
 ```
 
 ---
@@ -694,29 +810,11 @@ ID | StudentID | Name    | Date       | Time     | Status
 5. Push: `git push origin feature/YourFeature`
 6. Create Pull Request
 
-**Guidelines:**
-- Follow PEP 8 style guide
-- Add comments for complex logic
-- Test with multiple users
-- Update README if adding features
-
 ---
 
 ## 📄 License
 
 MIT License © 2026 Ujjwal Kamila
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-See `LICENSE` file for full details.
 
 ---
 
@@ -730,48 +828,27 @@ See `LICENSE` file for full details.
 
 ---
 
-## 🎯 Project Goals
-
-✅ Eliminate manual attendance marking
-✅ Provide real-time face recognition
-✅ Maintain student privacy with encrypted passwords
-✅ Generate accurate attendance reports
-✅ Send instant email notifications
-✅ Easy student profile management
-✅ Scalable for institutional use
-
----
-
 ## 📞 Support & FAQs
 
 ### FAQ
 
-**Q: Can I use a different email provider?**
-A: Yes, update SMTP settings in `login.py` and `face_recognition.py`
+**Q: Can I manually update attendance?**
+A: Yes, but only admin accounts can update attendance status from Present to Absent or vice versa
 
-**Q: How many students can be registered?**
-A: Unlimited (depends on disk space for face images)
+**Q: How do I fix erroneous attendance?**
+A: Login as admin, go to Attendance section, select record, change status, click Update
 
-**Q: What's the accuracy rate?**
-A: 95%+ with good lighting and 50+ samples per student
+**Q: What happens if face recognition fails?**
+A: Admin can manually mark attendance using the Manual Attendance Management system
 
-**Q: Can I modify the database schema?**
-A: Yes, update database.py and adjust code accordingly
+**Q: Can I export attendance records?**
+A: Yes, click "Export File" button in Attendance section to save as CSV
 
-**Q: How do I backup attendance data?**
-A: Export CSV from Attendance module or MySQL dump
-
-**Q: Can I run this on Mac/Linux?**
-A: Yes, update file paths and email credentials
-
-**Q: How do I create an admin account?**
-A: Create admin in MySQL terminal with Role='Admin' before running app
-
-**Q: Can regular users login?**
-A: No, only admin accounts can login. Regular users are managed through student database
+**Q: How accurate is the face recognition?**
+A: 95%+ with good lighting and 100+ training samples per student
 
 ---
 
-**For issues, suggestions, or contributions, please contact ujjwalkamila86@gmail.com**
+**For issues or contributions, contact ujjwalkamila86@gmail.com**
 
 Last Updated: June 4, 2026 | Version: 1.0
