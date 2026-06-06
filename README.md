@@ -111,6 +111,7 @@ cd d:\Laptop\Coding\Smart Hybrid Face Recognition Attendance System
 ### Step 2: Create Virtual Environment
 ```bash
 python -m venv venv
+source venv/bin/activate
 venv\Scripts\activate
 ```
 
@@ -510,7 +511,7 @@ Email Configuration:
 
 ### 9️⃣ Attendance Success Messages
 
-![Success Message](Images/Screenshots/save_attendece_popup.png)
+![Success Message](Images/Screenshots/save attendece pop up.png)
 
 ```
 Confirmation Popups:
@@ -532,7 +533,7 @@ Confirmation Popups:
 
 ### 🔟 Admin Update Student Data
 
-![Admin Update](Images/Screenshots/admin_update_student_data.png)
+![Admin Update](Images/Screenshots/admin update studnet data.png)
 
 ```
 Admin Panel Features:
@@ -565,7 +566,7 @@ Admin Restrictions:
 
 ## 🏗️ System Architecture
 
-![System Architecture Diagram](Images/Screenshots/system_arch.png)
+![System Architecture](Images/Screenshots/system arch.png)
 
 ```
 Complete Application Flow:
